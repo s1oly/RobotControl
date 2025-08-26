@@ -272,7 +272,7 @@ if __name__ == '__main__':
                 y_rotation = pid_controller(Kp=0.1, Ki = 0, Kd= 0, setpoint= 0, measurement=gelbelt.angle[1], final_time=current_time)
                 angle_offset, new_T = gelbelt.rotate_xy(x_rotation, y_rotation, gelbelt.T)
                 gelbelt.inverse_kinematic(gelbelt.joint_state, target_pos=new_T[:3, 3], rotate_R=new_T[:3,:3])
-                gelbelt.publish(duration=0.4, sleeptime=0.1)
+                gelbelt.publish(duration=0.2, sleeptime=0.1)
         except:
             print("Error Happened")
             continue
