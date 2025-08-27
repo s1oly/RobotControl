@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-from easyUR import UR
+# from easyUR import UR
 import geometry_msgs.msg
 import numpy as np
 import rospy
@@ -9,7 +8,8 @@ import geometry_msgs
 from franges import drange, frange
 from ros_numpy import numpify
 import rtde_control
-import rtde_recieve
+import rtde_receive
+
 
 def pose_msg_to_arrays (pose_stamped):
                                       
@@ -69,10 +69,12 @@ def pid_controller(Kp, Ki, Kd, setpoint, measurement, final_time):
 
 
 if __name__ == '__main__':
-    rtde_c = rtde_control.RTDEControlInterface("192.168.1.2")
-    rtde_r = rtde_recieve.RTDERecieveInterface("192.168.1.2")
+    rtde_c = rtde_control.RTDEControlInterface("192.168.1.12")
+    rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.12")
+    # print(ur_rtde)
     starting = rtde_r.getActualTCPPose()
 
+    t = np.array([0,0,0.130])
     angle = np.array([0,0,0])
     force = np.array([0,0,0])
 
@@ -82,19 +84,12 @@ if __name__ == '__main__':
     init_force = force[2]
   
     while not rospy.is_shutdown():
-   
-        if(angle[2] <-0.3):
-            t = np.array([0,0.032,0.130])
-        elif(angle[2] > 0.3):
-            t = np.array([0,-0.032, 0.130])
-        else:
-            t = np.array([0,0,0.130])
 
 
         #Getting the matrix intialized
-        init = rtde_recieve.getActualTCPPose()
+        init = rtde_r.getActualTCPPose()
         init_pos = init[0:3]
-        init_rot = init[3:0]
+        init_rot = init[3:]
 
         r = R.from_rotvec(init_rot)
         init_euler_eef = r.as_euler('ZYX', degrees = True)
@@ -110,22 +105,27 @@ if __name__ == '__main__':
 
         T_world_gelbelt_old = world_gelbelt_init(init_gelbelt_rotMatrix, init_gelbelt_pos)
         
-        
+        print(force[2])
+        print(init_force)
+        print(angle)
 
         # #Moving the robot down the correct increment --> Best contact is 0.1045 --> also dependent on angle and stuff
 
         if(force[2] - init_force > -45):
-            print(force)
+            print("moving down")
             pos_difference = np.array([0,0,-0.0005])
-            init_pos = init_pos + pos_difference
-            target = np.concatonate((init_pos, init_rot))
+            target_pos = init_pos + pos_difference
+            target = np.concatenate((target_pos, init_rot))
             rtde_c.servoL(target,0.01, 0.01, 0.1,0.05, 100)
+            print(force[2] - init_force)
         elif(force[2] - init_force < -50):
+            print("moving up")
             pos_difference = np.array([0,0,0.0005])
-            init_pos = init_pos + pos_difference
-            target = np.concatonate((init_pos, init_rot))
+            target_pos = init_pos + pos_difference
+            target = np.concatenate((target_pos, init_rot))
             rtde_c.servoL(target, 0.01, 0.01, 0.1, 0.05, 100)
         else:
+            print("correcting")
             # then set pose with correction
             x_rotation = pid_controller(Kp=0.1, Ki=0, Kd=0, setpoint=0, measurement=angle[2], final_time=0)
             y_rotation = pid_controller(Kp=0.1, Ki = 0, Kd= 0, setpoint= 0, measurement=angle[1], final_time=0)
@@ -142,7 +142,7 @@ if __name__ == '__main__':
             r = R.from_dcm(T_world_eef_new[:3,:3])
             target_rotvec = r.as_rotvec()
             target_pos = T_world_eef_new[:3, 3]
-            target = np.concatonate((target_pos, target_rotvec))
+            target = np.concatenate((target_pos, target_rotvec))
             rtde_c.servoL(target, 0.01, 0.01, 0.1, 0.05, 100)
         
   
