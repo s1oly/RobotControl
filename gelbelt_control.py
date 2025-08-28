@@ -109,24 +109,22 @@ if __name__ == '__main__':
         # #Moving the robot down the correct increment --> Best contact is 0.1045 --> also dependent on angle and stuff
 
         if(force[2] - init_force > -45):
-            # print("moving down")
             pos_difference = np.array([0,0,-0.0005]) # 0.0005
             target_pos = init_pos + pos_difference
             target = np.concatenate((target_pos, init_rot))
             rtde_c.servoL(target,0.01, 0.01, 0.1,0.05, 100)
         elif(force[2] - init_force < -50):
-            # print("moving up")
-            pos_difference = np.array([0,0,0.0005])
+            correction = pid_controller(0.000015, -50, force[2] - init_force)
+            pos_difference = np.array([0,0,correction])
+            print(correction)
             target_pos = init_pos + pos_difference
             target = np.concatenate((target_pos, init_rot))
             rtde_c.servoL(target, 0.01, 0.01, 0.1, 0.05, 100)
         else:
-            # print("correcting")
             # then set pose with correction
-            x_rotation = pid_controller(Kp=0.4, setpoint=0, measurement=angle[2])
-            y_rotation = pid_controller(Kp=0.4, setpoint= 0, measurement=angle[1])
+            x_rotation = pid_controller(Kp=0.1, setpoint=0, measurement=angle[2])
+            y_rotation = pid_controller(Kp=0.1, setpoint= 0, measurement=angle[1])
             correct = [0,y_rotation, x_rotation]
-            print(correct)
             r  = R.from_euler('ZYX', correct, degrees = True)
             gelbelt_correction_rotMatrix = r.as_dcm()
             target_gelbelt_pos_difference = np.array([0,0,0])
@@ -138,7 +136,7 @@ if __name__ == '__main__':
 
             r = R.from_dcm(T_world_eef_new[:3,:3])
             target_rotvec = r.as_rotvec()
-            target_pos = T_world_eef_new[:3, 3]
+            target_pos = T_world_eef_new[:3, 3] + np.array([0,0.0005, 0])
             target = np.concatenate((target_pos, target_rotvec))
             rtde_c.servoL(target, 0.01, 0.01, 0.1, 0.05, 100)
         
