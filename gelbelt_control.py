@@ -107,16 +107,19 @@ if __name__ == '__main__':
         T_world_gelbelt_old = world_gelbelt_init(init_gelbelt_rotMatrix, init_gelbelt_pos)
 
         # #Moving the robot down the correct increment --> Best contact is 0.1045 --> also dependent on angle and stuff
+        # Force was -45 , -50 previously
 
-        if(force[2] - init_force > -45):
-            pos_difference = np.array([0,0,-0.0005]) # 0.0005
+        if(force[2] - init_force > -50):
+            print(force[2] - init_force)
+            correction = pid_controller(Kp= 0.0001, setpoint= -50, measurement= force[2])
+            pos_difference = np.array([0,0,-0.0005]) # 0.0005 --> tried correction, but got some weird response
             target_pos = init_pos + pos_difference
             target = np.concatenate((target_pos, init_rot))
             rtde_c.servoL(target,0.01, 0.01, 0.1,0.05, 100)
-        elif(force[2] - init_force < -50):
-            correction = pid_controller(0.000015, -50, force[2] - init_force)
+        elif(force[2] - init_force < -55):
+            print(force[2] - init_force)
+            correction = pid_controller(Kp= 0.0001, setpoint= -55, measurement= force[2])
             pos_difference = np.array([0,0,correction])
-            print(correction)
             target_pos = init_pos + pos_difference
             target = np.concatenate((target_pos, init_rot))
             rtde_c.servoL(target, 0.01, 0.01, 0.1, 0.05, 100)
@@ -136,7 +139,7 @@ if __name__ == '__main__':
 
             r = R.from_dcm(T_world_eef_new[:3,:3])
             target_rotvec = r.as_rotvec()
-            target_pos = T_world_eef_new[:3, 3] + np.array([0,0.0005, 0])
+            target_pos = T_world_eef_new[:3, 3] + np.array([0,0.00025, 0])
             target = np.concatenate((target_pos, target_rotvec))
             rtde_c.servoL(target, 0.01, 0.01, 0.1, 0.05, 100)
         
