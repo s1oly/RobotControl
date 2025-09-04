@@ -124,42 +124,50 @@ if __name__ == '__main__':
         # #Moving the robot down the correct increment --> Best contact is 0.1045 --> also dependent on angle and stuff
         # Force was -45 , -50 previously, also used force 2, but currently wanting to print out the smoothed average
 
+        # if(smoothed_average_force - init_force > -55):
+        #     correction = pid_controller(Kp= 0.0001, setpoint= -55, measurement= force[2])
+        #     print(correction)
+        #     correction = np.min(np.array([correction, -0.0001]))
+        #     pos_difference = np.array([0,0,correction]) # 0.0005 --> tried correction, but got some weird response
+        #     target_pos = init_pos + pos_difference
+        #     target = np.concatenate((target_pos, init_rot))
+        #     rtde_c.servoL(target,0.01, 0.01, 0.1,0.05, 100)
+        # elif(smoothed_average_force - init_force < -65):
+        #     correction = pid_controller(Kp= 0.0001, setpoint= -65, measurement= force[2])
+        #     print(correction)
+        #     correction = np.max(np.array([correction, 0.0001]))
+        #     pos_difference = np.array([0,0,correction])
+        #     target_pos = init_pos + pos_difference
+        #     target = np.concatenate((target_pos, init_rot))
+        #     rtde_c.servoL(target, 0.01, 0.01, 0.1, 0.05, 100)
+        # else:
+            # then set pose with correction
+        print("correcting")
+        x_rotation = pid_controller(Kp=0.05, setpoint=0, measurement=angle[2])
+        y_rotation = pid_controller(Kp=0.05, setpoint= 0, measurement=angle[1])
+        correct = [0,y_rotation, x_rotation]
+        r  = R.from_euler('ZYX', correct, degrees = True)
+        gelbelt_correction_rotMatrix = r.as_dcm()
+        target_gelbelt_pos_difference = np.array([0,0,0])
+
+        T_gelbelt_old_gelbelt_new = gelbelt_old_gelbelt_new(gelbelt_correction_rotMatrix, target_gelbelt_pos_difference)
+        T_world_gelbelt_new = np.matmul(T_world_gelbelt_old, T_gelbelt_old_gelbelt_new)
+
+        T_world_eef_new = np.matmul(T_world_gelbelt_new, T_eef_init_to_geleblt_inverse)
+
+        #The matrix after the correction
+        r = R.from_dcm(T_world_eef_new[:3,:3])
+        target_rotvec = r.as_rotvec()
         if(smoothed_average_force - init_force > -55):
-            print(smoothed_average_force - init_force)
             correction = pid_controller(Kp= 0.0001, setpoint= -55, measurement= force[2])
             correction = np.min(np.array([correction, -0.0001]))
-            pos_difference = np.array([0,0,correction]) # 0.0005 --> tried correction, but got some weird response
-            target_pos = init_pos + pos_difference
-            target = np.concatenate((target_pos, init_rot))
-            rtde_c.servoL(target,0.01, 0.01, 0.1,0.05, 100)
         elif(smoothed_average_force - init_force < -65):
-            print(smoothed_average_force - init_force)
             correction = pid_controller(Kp= 0.0001, setpoint= -65, measurement= force[2])
             correction = np.max(np.array([correction, 0.0001]))
-            pos_difference = np.array([0,0,correction])
-            target_pos = init_pos + pos_difference
-            target = np.concatenate((target_pos, init_rot))
-            rtde_c.servoL(target, 0.01, 0.01, 0.1, 0.05, 100)
-        else:
-            # then set pose with correction
-            print("correcting")
-            x_rotation = pid_controller(Kp=0.1, setpoint=0, measurement=angle[2])
-            y_rotation = pid_controller(Kp=0.1, setpoint= 0, measurement=angle[1])
-            correct = [0,y_rotation, x_rotation]
-            r  = R.from_euler('ZYX', correct, degrees = True)
-            gelbelt_correction_rotMatrix = r.as_dcm()
-            target_gelbelt_pos_difference = np.array([0,0,0])
-
-            T_gelbelt_old_gelbelt_new = gelbelt_old_gelbelt_new(gelbelt_correction_rotMatrix, target_gelbelt_pos_difference)
-            T_world_gelbelt_new = np.matmul(T_world_gelbelt_old, T_gelbelt_old_gelbelt_new)
-
-            T_world_eef_new = np.matmul(T_world_gelbelt_new, T_eef_init_to_geleblt_inverse)
-
-            r = R.from_dcm(T_world_eef_new[:3,:3])
-            target_rotvec = r.as_rotvec()
-            target_pos = T_world_eef_new[:3, 3] + np.array([0,0.0005, 0])
-            target = np.concatenate((target_pos, target_rotvec))
-            rtde_c.servoL(target, 0.01, 0.01, 0.1, 0.05, 100)
+        print(correction)
+        target_pos = T_world_eef_new[:3, 3] + np.array([0,0.0005, correction])
+        target = np.concatenate((target_pos, target_rotvec))
+        rtde_c.servoL(target, 0.01, 0.01, 0.1, 0.05, 100)
         
   
         rospy.sleep(0.001)
