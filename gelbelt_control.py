@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # from easyUR import UR
 import geometry_msgs.msg
 import numpy as np
@@ -10,7 +12,7 @@ from ros_numpy import numpify
 import pandas as pd
 import rtde_control
 import rtde_receive
-
+import time
 
 
 
@@ -95,17 +97,38 @@ if __name__ == '__main__':
 
     data = []
   
+    start_time = time.time()
+    check_count = 0
+
+    ground_truth = rtde_r.getActualTCPPose()
+    ground_rot = ground_truth[3:]
+
     while not rospy.is_shutdown():
 
         data.append(force[2].copy())
         smoothed_average_force = simple_moving_average(data, window_size= 5)
-        
-
 
         #Getting the matrix intialized
         init = rtde_r.getActualTCPPose()
         init_pos = init[0:3]
         init_rot = init[3:]
+
+        if(np.abs(angle[1]) < 0.8 and np.abs(angle[2]) < 0.8 and check_count < 1):
+            end_time = time.time()
+            delta_t = end_time - start_time
+            a = R.from_rotvec(init_rot)
+            check_pose_euler = a.as_euler('ZYX', degrees = True)
+            b = R.from_rotvec(ground_rot)
+            ground_pose_euler = b.as_euler('ZYX', degrees = True)
+            comparison_df = pd.DataFrame({
+                'time_elasped': delta_t,
+                'Robot_Angle Z': check_pose_euler,
+                'Ground_Truth': ground_pose_euler
+            })
+            output_path = "/home/shubaniyer/catkin_ws/src/rocky_scripts/src/data.csv"
+            comparison_df.to_csv(output_path, mode= 'a', index=False)
+            print(f"Data saved to {output_path}")
+            check_count = check_count + 1
 
         r = R.from_rotvec(init_rot)
         init_euler_eef = r.as_euler('ZYX', degrees = True)
@@ -121,30 +144,9 @@ if __name__ == '__main__':
 
         T_world_gelbelt_old = world_gelbelt_init(init_gelbelt_rotMatrix, init_gelbelt_pos)
 
-        # #Moving the robot down the correct increment --> Best contact is 0.1045 --> also dependent on angle and stuff
-        # Force was -45 , -50 previously, also used force 2, but currently wanting to print out the smoothed average
-
-        # if(smoothed_average_force - init_force > -55):
-        #     correction = pid_controller(Kp= 0.0001, setpoint= -55, measurement= force[2])
-        #     print(correction)
-        #     correction = np.min(np.array([correction, -0.0001]))
-        #     pos_difference = np.array([0,0,correction]) # 0.0005 --> tried correction, but got some weird response
-        #     target_pos = init_pos + pos_difference
-        #     target = np.concatenate((target_pos, init_rot))
-        #     rtde_c.servoL(target,0.01, 0.01, 0.1,0.05, 100)
-        # elif(smoothed_average_force - init_force < -65):
-        #     correction = pid_controller(Kp= 0.0001, setpoint= -65, measurement= force[2])
-        #     print(correction)
-        #     correction = np.max(np.array([correction, 0.0001]))
-        #     pos_difference = np.array([0,0,correction])
-        #     target_pos = init_pos + pos_difference
-        #     target = np.concatenate((target_pos, init_rot))
-        #     rtde_c.servoL(target, 0.01, 0.01, 0.1, 0.05, 100)
-        # else:
-            # then set pose with correction
         print("correcting")
-        x_rotation = pid_controller(Kp=0.05, setpoint=0, measurement=angle[2])
-        y_rotation = pid_controller(Kp=0.05, setpoint= 0, measurement=angle[1])
+        x_rotation = pid_controller(Kp=0.045, setpoint=0, measurement=angle[2])
+        y_rotation = pid_controller(Kp=0.055, setpoint= 0, measurement=angle[1])
         correct = [0,y_rotation, x_rotation]
         r  = R.from_euler('ZYX', correct, degrees = True)
         gelbelt_correction_rotMatrix = r.as_dcm()
@@ -158,16 +160,18 @@ if __name__ == '__main__':
         #The matrix after the correction
         r = R.from_dcm(T_world_eef_new[:3,:3])
         target_rotvec = r.as_rotvec()
-        if(smoothed_average_force - init_force > -55):
-            correction = pid_controller(Kp= 0.0001, setpoint= -55, measurement= force[2])
+        # force was -25 and -40, going to test different values to check how it looks 
+        if(smoothed_average_force - init_force > -20):
+            correction = pid_controller(Kp= 0.0001, setpoint= -20, measurement= force[2])
             correction = np.min(np.array([correction, -0.0001]))
-        elif(smoothed_average_force - init_force < -65):
-            correction = pid_controller(Kp= 0.0001, setpoint= -65, measurement= force[2])
+        elif(smoothed_average_force - init_force < -40):
+            correction = pid_controller(Kp= 0.0001, setpoint= -40, measurement= force[2])
             correction = np.max(np.array([correction, 0.0001]))
         print(correction)
-        target_pos = T_world_eef_new[:3, 3] + np.array([0,0.0005, correction])
+        target_pos = T_world_eef_new[:3, 3] + np.array([0,0.0000, correction]) # x movement was 0.0005, gonna make 0 for now just to test images/angle correction
         target = np.concatenate((target_pos, target_rotvec))
         rtde_c.servoL(target, 0.01, 0.01, 0.1, 0.05, 100)
+        
         
   
         rospy.sleep(0.001)
