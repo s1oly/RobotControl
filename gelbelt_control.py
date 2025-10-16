@@ -15,6 +15,7 @@ import rtde_receive
 import time
 
 
+start_time = time.time()
 
 def pose_msg_to_arrays (pose_stamped):
                                       
@@ -81,7 +82,11 @@ if __name__ == '__main__':
     rtde_c = rtde_control.RTDEControlInterface("192.168.1.12")
     rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.12")
     # print(ur_rtde)
-    starting = rtde_r.getActualTCPPose()
+    ground_truth = rtde_r.getActualTCPPose().copy()
+    ground_rot = ground_truth[3:]
+    b = R.from_rotvec(ground_rot)
+    ground_pose_euler = b.as_euler('ZYX', degrees = True)
+    print(ground_pose_euler)
 
     t = np.array([0,0,0.130])
     angle = np.array([0,0,0])
@@ -96,12 +101,7 @@ if __name__ == '__main__':
     init_force = force[2].copy()
 
     data = []
-  
-    start_time = time.time()
     check_count = 0
-
-    ground_truth = rtde_r.getActualTCPPose()
-    ground_rot = ground_truth[3:]
 
     while not rospy.is_shutdown():
 
@@ -113,22 +113,21 @@ if __name__ == '__main__':
         init_pos = init[0:3]
         init_rot = init[3:]
 
-        if(np.abs(angle[1]) < 0.8 and np.abs(angle[2]) < 0.8 and check_count < 1):
+        # if(np.abs(angle[1]) < 0.8 and np.abs(angle[2]) < 0.8 and check_count < 1):
+        if(check_count % 250 == 0):
             end_time = time.time()
             delta_t = end_time - start_time
             a = R.from_rotvec(init_rot)
             check_pose_euler = a.as_euler('ZYX', degrees = True)
-            b = R.from_rotvec(ground_rot)
-            ground_pose_euler = b.as_euler('ZYX', degrees = True)
             comparison_df = pd.DataFrame({
-                'time_elasped': delta_t,
-                'Robot_Angle Z': check_pose_euler,
-                'Ground_Truth': ground_pose_euler
+                'time_elasped': end_time,
+                'Robot_Angle Z': [check_pose_euler],
+                'Ground_Truth': [ground_pose_euler]
             })
             output_path = "/home/shubaniyer/catkin_ws/src/rocky_scripts/src/data.csv"
             comparison_df.to_csv(output_path, mode= 'a', index=False)
             print(f"Data saved to {output_path}")
-            check_count = check_count + 1
+        check_count = check_count + 1
 
         r = R.from_rotvec(init_rot)
         init_euler_eef = r.as_euler('ZYX', degrees = True)
@@ -144,7 +143,7 @@ if __name__ == '__main__':
 
         T_world_gelbelt_old = world_gelbelt_init(init_gelbelt_rotMatrix, init_gelbelt_pos)
 
-        print("correcting")
+        # print("correcting")
         x_rotation = pid_controller(Kp=0.045, setpoint=0, measurement=angle[2])
         y_rotation = pid_controller(Kp=0.055, setpoint= 0, measurement=angle[1])
         correct = [0,y_rotation, x_rotation]
@@ -167,7 +166,7 @@ if __name__ == '__main__':
         elif(smoothed_average_force - init_force < -40):
             correction = pid_controller(Kp= 0.0001, setpoint= -40, measurement= force[2])
             correction = np.max(np.array([correction, 0.0001]))
-        print(correction)
+        # print(correction)
         target_pos = T_world_eef_new[:3, 3] + np.array([0,0.0000, correction]) # x movement was 0.0005, gonna make 0 for now just to test images/angle correction
         target = np.concatenate((target_pos, target_rotvec))
         rtde_c.servoL(target, 0.01, 0.01, 0.1, 0.05, 100)
