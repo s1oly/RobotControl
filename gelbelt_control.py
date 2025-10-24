@@ -113,20 +113,22 @@ if __name__ == '__main__':
         init_pos = init[0:3]
         init_rot = init[3:]
 
-        # if(np.abs(angle[1]) < 0.8 and np.abs(angle[2]) < 0.8 and check_count < 1):
+  
         if(check_count % 250 == 0):
             end_time = time.time()
             delta_t = end_time - start_time
             a = R.from_rotvec(init_rot)
             check_pose_euler = a.as_euler('ZYX', degrees = True)
             comparison_df = pd.DataFrame({
-                'time_elasped': end_time,
+                'time_elasped': delta_t,
                 'Robot_Angle Z': [check_pose_euler],
                 'Ground_Truth': [ground_pose_euler]
             })
-            output_path = "/home/shubaniyer/catkin_ws/src/rocky_scripts/src/data.csv"
+            output_path = "/home/shubaniyer/catkin_ws/src/rocky_scripts/src/data.csv" # change to data after debugging
             comparison_df.to_csv(output_path, mode= 'a', index=False)
             print(f"Data saved to {output_path}")
+            if(delta_t > 25):
+                rospy.signal_shutdown("Steady State")
         check_count = check_count + 1
 
         r = R.from_rotvec(init_rot)
@@ -144,8 +146,24 @@ if __name__ == '__main__':
         T_world_gelbelt_old = world_gelbelt_init(init_gelbelt_rotMatrix, init_gelbelt_pos)
 
         # print("correcting")
-        x_rotation = pid_controller(Kp=0.045, setpoint=0, measurement=angle[2])
-        y_rotation = pid_controller(Kp=0.055, setpoint= 0, measurement=angle[1])
+        if(smoothed_average_force - init_force > -10):
+            x_rotation = pid_controller(Kp=0.045, setpoint=0, measurement=0) #angle[2]
+            y_rotation = pid_controller(Kp=0.055, setpoint= 0, measurement=0)
+        else:
+            x_rotation = pid_controller(Kp=0.045, setpoint=0, measurement=angle[2]) #angle[2]
+            y_rotation = pid_controller(Kp=0.055, setpoint= 0, measurement=angle[1]) 
+
+        if(x_rotation <= 0):
+            x_rotation = np.max(np.array([-10.0,x_rotation]))
+        elif(x_rotation > 0):
+            x_rotation = np.min(np.array([10.0,x_rotation]))
+
+        if(y_rotation <= 0):
+            y_rotation = np.max(np.array([-6,y_rotation]))
+        elif(x_rotation > 0):
+            y_rotation = np.min(np.array([6,y_rotation]))
+
+
         correct = [0,y_rotation, x_rotation]
         r  = R.from_euler('ZYX', correct, degrees = True)
         gelbelt_correction_rotMatrix = r.as_dcm()

@@ -23,8 +23,8 @@ if __name__ == '__main__':
     rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.12")
     rospy.Rate(100)
     
-    target_pos = [0.10, -0.85, 0.14]
-    target_rot_euler = [90,0,180]
+    target_pos = [0.125, -0.85, 0.14]
+    target_rot_euler = [0,0,180]
     r = R.from_euler('ZYX', target_rot_euler, degrees = True)
     target_rot_vec = r.as_rotvec()
     target = np.concatenate((target_pos, target_rot_vec))
